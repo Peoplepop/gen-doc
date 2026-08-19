@@ -1,4 +1,5 @@
 .file/
+docs/domain-model-decisions.md
 __pycache__/
 *.pyc
 .venv/
