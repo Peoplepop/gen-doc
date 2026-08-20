@@ -49,7 +49,7 @@ curl -b cookies.txt http://127.0.0.1:8000/api/projects/
 ## 執行測試
 
 ```bash
-python src/manage.py test core accounts projects features selections overrides screenshots assembly
+python src/manage.py test core accounts projects features selections overrides screenshots assembly documents
 ```
 
 > 注意：`manage.py test` 的測試探索以執行時的工作目錄為 top-level dir，若省略 app label 從 repo 根目錄執行會找到 0 支測試（但仍回報 `OK`），務必列出所有 app。
