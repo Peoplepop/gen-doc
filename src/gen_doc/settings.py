@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'selections',
     'overrides',
     'screenshots',
+    'assembly',
 ]
 
 MIDDLEWARE = [
