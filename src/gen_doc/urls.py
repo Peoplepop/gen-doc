@@ -14,6 +14,8 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
@@ -29,3 +31,8 @@ urlpatterns = [
     path('api/', include('screenshots.urls')),
     path('api/projects/', include('assembly.urls')),
 ]
+
+if settings.DEBUG:
+    # 本機開發時直接由 Django 服務上傳的截圖檔案；正式部署另有 web
+    # server／物件儲存負責，不透過這行。
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

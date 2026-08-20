@@ -136,6 +136,17 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media (使用者上傳的截圖等檔案，見 screenshots app)
+# https://docs.djangoproject.com/en/5.2/topics/files/
+#
+# 原本未設定，MEDIA_ROOT 預設為空字串，導致 FileField 的相對路徑
+# （例如 screenshots/project_<id>/...）實際落在「執行當下的工作目錄」，
+# 而不是專案內固定的位置——這就是為什麼跑測試會在 repo 根目錄意外冒出
+# 一個 screenshots/ 資料夾。固定成 BASE_DIR / 'media'，對應 .gitignore
+# 已經排除的 media/。
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
