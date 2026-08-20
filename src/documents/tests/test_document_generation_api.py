@@ -128,12 +128,11 @@ class InvalidDocumentTypeTests(TestCase):
         response = self.client.get(_history_url(self.project.id, "not_a_real_type"))
         self.assertEqual(response.status_code, 404)
 
-    def test_training_deck_generate_is_blocked_with_400(self):
-        # training_deck (PPTX) 是 T9 範圍，T8 明確擋下、回傳 400（不是
-        # 404——這是「已知但尚未支援」，跟「根本不存在的代碼」語意不同）。
-        response = self.client.post(_generate_url(self.project.id, "training_deck"))
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(GeneratedDocument.objects.count(), 0)
+    # 注意：training_deck (PPTX) 的產生曾在 T8 階段被明確擋下、回傳 400
+    # （「已知但尚未支援」）。T9（Issue #10）已經實作 PPTX 產生，這個行為
+    # 不再成立——`training_deck` 產生的正向/負向測試改由
+    # `test_pptx_generation_api.py` 涵蓋（同一批 T9 acceptance criteria），
+    # 避免這裡的舊測試斷言跟新行為互相矛盾。
 
     def test_training_deck_history_returns_empty_list_not_error(self):
         # 歷史查詢端點刻意對四種文件類型都通用（見 views.py 設計判斷）。
