@@ -26,4 +26,4 @@ jobs:
         run: python src/manage.py migrate --noinput
 
       - name: Run tests
-        run: python src/manage.py test core accounts projects features selections screenshots
+        run: python src/manage.py test core accounts projects features selections overrides screenshots
