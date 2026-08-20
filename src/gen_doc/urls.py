@@ -23,8 +23,6 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls')),
     path('api/projects/', include('projects.urls')),
     path('api/projects/', include('selections.urls')),
-    path('api/projects/', include('overrides.urls')),
     path('api/feature-nodes/', include('features.urls')),
-    path('api/feature-nodes/', include('overrides.node_urls')),
     path('api/', include('screenshots.urls')),
 ]

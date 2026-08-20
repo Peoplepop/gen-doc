@@ -54,7 +54,6 @@ INSTALLED_APPS = [
     'projects',
     'features',
     'selections',
-    'overrides',
     'screenshots',
 ]
 
