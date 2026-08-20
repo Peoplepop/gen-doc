@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/feature-nodes/', include('overrides.node_urls')),
     path('api/', include('screenshots.urls')),
     path('api/projects/', include('assembly.urls')),
+    path('api/projects/', include('documents.urls')),
 ]
 
 if settings.DEBUG:

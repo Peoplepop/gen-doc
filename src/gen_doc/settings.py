@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'overrides',
     'screenshots',
     'assembly',
+    'documents',
 ]
 
 MIDDLEWARE = [
