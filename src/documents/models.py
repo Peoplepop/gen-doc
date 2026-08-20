@@ -3,17 +3,28 @@ import uuid
 from django.conf import settings
 from django.db import models
 
-from features.models import DOCUMENT_TYPE_CHOICES, PROSE_DOCUMENT_TYPES
+from features.models import (
+    BULLET_DOCUMENT_TYPES,
+    DOCUMENT_TYPE_CHOICES,
+    PROSE_DOCUMENT_TYPES,
+)
 from projects.models import Project
 
 # T8 scope (Issue #9): DOCX 文件產生與歷史紀錄。
 #
-# 只有 DOCX 家族三種文件類型（系統設計／系統測試／系統安裝）在本票支援
-# 「產生」——教育訓練簡報（PPTX）是 T9 的範圍。這裡沿用
-# `features.PROSE_DOCUMENT_TYPES`（跟 T7 判斷「這個文件類型用散文欄位」
-# 是同一組常數）當作「本票支援產生的文件類型」，避免另開一份重複清單、
-# 兩份定義漂移不同步。
+# DOCX 家族三種文件類型（系統設計／系統測試／系統安裝）支援「產生」DOCX。
+# 這裡沿用 `features.PROSE_DOCUMENT_TYPES`（跟 T7 判斷「這個文件類型用散
+# 文欄位」是同一組常數）當作「支援產生 DOCX 的文件類型」，避免另開一份重
+# 複清單、兩份定義漂移不同步。
 DOCX_GENERATABLE_DOCUMENT_TYPES = PROSE_DOCUMENT_TYPES
+
+# T9 scope (Issue #10): PPTX 文件產生（教育訓練簡報）。
+#
+# 同樣的道理，沿用 `features.BULLET_DOCUMENT_TYPES`（目前只有
+# `training_deck` 一個）當作「支援產生 PPTX 的文件類型」——PPTX 家族目前
+# 只有教育訓練簡報一種，但用同一組常數而不是寫死字串，未來若
+# BULLET_DOCUMENT_TYPES 擴充，這裡不需要跟著改。
+PPTX_GENERATABLE_DOCUMENT_TYPES = BULLET_DOCUMENT_TYPES
 
 OUTPUT_FORMAT_DOCX = "docx"
 OUTPUT_FORMAT_PPTX = "pptx"
