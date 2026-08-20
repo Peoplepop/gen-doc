@@ -2,7 +2,8 @@ import json
 
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 
@@ -14,12 +15,16 @@ def _parse_json(request):
         return None, JsonResponse({"detail": "無效的 JSON"}, status=400)
 
 
-# NOTE: these endpoints are exempted from CSRF checks because T2 ships an
-# API-only surface with no HTML form/template yet. Once a real frontend is
-# built (later ticket), it should either issue/send CSRF tokens or this
-# should move to a token-based auth scheme — see docs/adr/0001 for the
-# "avoid premature environment coupling" precedent set in T1.
-@csrf_exempt
+@ensure_csrf_cookie
+@require_http_methods(["GET"])
+def csrf_view(request):
+    """Primes the csrftoken cookie for API clients (SPA/test clients that
+    have no HTML form to read a hidden input from). Callers should read the
+    `csrftoken` cookie after hitting this once, then send it back as the
+    `X-CSRFToken` header on every POST/PUT/PATCH/DELETE."""
+    return JsonResponse({"csrfToken": get_token(request)})
+
+
 @require_http_methods(["POST"])
 def login_view(request):
     """Username/password login (帳密登入). Establishes a Django session."""
@@ -38,7 +43,6 @@ def login_view(request):
     return JsonResponse({"detail": "登入成功", "username": user.username})
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def logout_view(request):
     """Clears the current session, if any."""

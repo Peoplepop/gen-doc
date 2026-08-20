@@ -256,3 +256,39 @@ class OptimisticLockConflictTests(TestCase):
         self.assertEqual(
             response_b.json()["system_version"], "B 的版本（重新整理後）"
         )
+
+
+class ProjectCsrfProtectionTests(TestCase):
+    """Create/update/delete are state-changing and must be covered by
+    Django's CSRF protection, not exempted from it. Uses a client with CSRF
+    checks turned ON — the other tests above use the default test Client,
+    which disables CSRF checks, so they wouldn't catch a regression here."""
+
+    def setUp(self):
+        User.objects.create_user(username="pm2", password="pw12345")
+        self.client = Client(enforce_csrf_checks=True)
+        self.client.login(username="pm2", password="pw12345")
+
+    def _csrf_token(self):
+        return self.client.get("/api/auth/csrf/").json()["csrfToken"]
+
+    def test_create_without_csrf_token_is_rejected(self):
+        response = self.client.post(
+            "/api/projects/",
+            data=json.dumps(SAMPLE_PROJECT_PAYLOAD),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Project.objects.count(), 0)
+
+    def test_create_with_primed_csrf_token_succeeds(self):
+        token = self._csrf_token()
+
+        response = self.client.post(
+            "/api/projects/",
+            data=json.dumps(SAMPLE_PROJECT_PAYLOAD),
+            content_type="application/json",
+            HTTP_X_CSRFTOKEN=token,
+        )
+
+        self.assertEqual(response.status_code, 201)

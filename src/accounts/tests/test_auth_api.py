@@ -8,7 +8,7 @@ the HTTP response, never on internal functions/classes directly.
 import json
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import Client, TestCase
 
 
 class LoginApiTests(TestCase):
@@ -54,3 +54,39 @@ class LoginApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+class CsrfProtectionTests(TestCase):
+    """Login/logout are state-changing (they establish/clear a session), so
+    they must be covered by Django's CSRF protection like every other
+    unsafe endpoint — no @csrf_exempt escape hatch. Uses a client with CSRF
+    checks turned ON (the default test Client disables them, which is why
+    the other tests above don't need a token)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="s3cret-pw")
+        self.client = Client(enforce_csrf_checks=True)
+
+    def test_login_without_csrf_token_is_rejected(self):
+        response = self.client.post(
+            "/api/auth/login/",
+            data=json.dumps({"username": "alice", "password": "s3cret-pw"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_with_primed_csrf_token_succeeds(self):
+        csrf_response = self.client.get("/api/auth/csrf/")
+        token = csrf_response.json()["csrfToken"]
+
+        response = self.client.post(
+            "/api/auth/login/",
+            data=json.dumps({"username": "alice", "password": "s3cret-pw"}),
+            content_type="application/json",
+            HTTP_X_CSRFTOKEN=token,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("_auth_user_id", self.client.session)

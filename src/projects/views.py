@@ -3,7 +3,6 @@ from datetime import datetime
 
 from django.http import JsonResponse
 from django.utils.dateparse import parse_datetime
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from .models import PROJECT_VARIABLE_FIELDS, Project
@@ -73,7 +72,6 @@ def _apply_variable_fields(project: Project, payload: dict, *, partial: bool):
     return None
 
 
-@csrf_exempt
 @require_http_methods(["GET", "POST"])
 def project_list(request):
     auth_error = _require_auth(request)
@@ -104,7 +102,6 @@ def project_list(request):
     return JsonResponse(_serialize(project), status=201)
 
 
-@csrf_exempt
 @require_http_methods(["GET", "PUT", "PATCH", "DELETE"])
 def project_detail(request, pk):
     auth_error = _require_auth(request)
