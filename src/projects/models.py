@@ -20,7 +20,7 @@ class Project(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="projects",
-        verbose_name="owner_user_id",
+        verbose_name="建立者",
     )
 
     # --- 專案變數 (project variables) ---
@@ -36,12 +36,12 @@ class Project(models.Model):
     server_location = models.CharField("伺服器位置", max_length=200, blank=True, default="")
 
     # 軟刪除：刪除後列表不再顯示，但資料列本身不被清除。
-    is_deleted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField("是否已刪除", default=False)
 
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField("建立時間", auto_now_add=True)
     # 樂觀鎖版本戳記：每次 save() 都會自動更新；PUT/PATCH 時比對呼叫端
     # 帶來的舊值與目前 DB 值，不一致即代表資料已被他人更新過。
-    updated_at = models.DateTimeField(auto_now=True)
+    updated_at = models.DateTimeField("最後更新時間", auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]

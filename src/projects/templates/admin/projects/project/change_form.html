@@ -1,0 +1,18 @@
+{% extends "admin/change_form.html" %}
+{% load admin_urls %}
+
+{% block object-tools-items %}
+{% if change and generate_document_types %}
+  {% for code, label in generate_document_types %}
+  <li>
+    <form method="post"
+          action="{% url 'admin:projects_project_generate_document' object_id=original.pk document_type=code %}"
+          style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="button" style="cursor:pointer;">產生{{ label }}</button>
+    </form>
+  </li>
+  {% endfor %}
+{% endif %}
+{{ block.super }}
+{% endblock %}
