@@ -62,6 +62,8 @@ class ProjectFeatureContentOverride(models.Model):
             )
         ]
         ordering = ["project_id", "node_id", "document_type"]
+        verbose_name = "專案內容覆寫"
+        verbose_name_plural = "專案內容覆寫"
 
     def __str__(self) -> str:
         return f"{self.project_id} override {self.node_id}/{self.document_type}"
@@ -89,6 +91,8 @@ class ProjectCustomSection(models.Model):
 
     class Meta:
         ordering = ["project_id", "order", "id"]
+        verbose_name = "專案自訂章節"
+        verbose_name_plural = "專案自訂章節"
 
     def __str__(self) -> str:
         return f"{self.title} (project #{self.project_id})"

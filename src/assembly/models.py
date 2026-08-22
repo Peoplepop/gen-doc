@@ -121,6 +121,8 @@ class ProjectPreviewSetting(models.Model):
             )
         ]
         ordering = ["project_id", "document_type"]
+        verbose_name = "專案預覽設定"
+        verbose_name_plural = "專案預覽設定"
 
     def __str__(self) -> str:
         return f"{self.project_id} preview / {self.document_type}"

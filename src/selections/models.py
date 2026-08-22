@@ -33,6 +33,8 @@ class ProjectFeatureSelection(models.Model):
             )
         ]
         ordering = ["node_id"]
+        verbose_name = "專案功能勾選"
+        verbose_name_plural = "專案功能勾選"
 
     def __str__(self) -> str:
         return f"{self.project_id} checked {self.node_id}"
@@ -60,6 +62,8 @@ class ProjectFeatureExclusion(models.Model):
             )
         ]
         ordering = ["node_id"]
+        verbose_name = "專案功能排除"
+        verbose_name_plural = "專案功能排除"
 
     def __str__(self) -> str:
         return f"{self.project_id} excluded {self.node_id}"

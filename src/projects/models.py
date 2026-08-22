@@ -45,6 +45,8 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        verbose_name = "專案"
+        verbose_name_plural = "專案"
 
     def __str__(self) -> str:
         return f"{self.customer_name} / {self.project_name} (#{self.pk})"

@@ -100,6 +100,8 @@ class GeneratedDocument(models.Model):
 
     class Meta:
         ordering = ["-generated_at", "-id"]
+        verbose_name = "已產生文件"
+        verbose_name_plural = "已產生文件"
 
     def __str__(self) -> str:
         return f"{self.project_id} / {self.document_type} @ {self.generated_at}"

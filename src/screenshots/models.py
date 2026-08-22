@@ -31,6 +31,8 @@ class ScreenshotRequirement(models.Model):
 
     class Meta:
         ordering = ["node_id", "order", "id"]
+        verbose_name = "截圖需求"
+        verbose_name_plural = "截圖需求"
 
     def __str__(self) -> str:
         return f"{self.node.name} / {self.name}"
@@ -97,6 +99,8 @@ class ProjectScreenshot(models.Model):
             )
         ]
         ordering = ["requirement_id", "is_custom", "id"]
+        verbose_name = "專案截圖"
+        verbose_name_plural = "專案截圖"
 
     def __str__(self) -> str:
         kind = "客製" if self.is_custom else "預設"

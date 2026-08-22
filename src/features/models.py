@@ -59,6 +59,8 @@ class FeatureNode(models.Model):
 
     class Meta:
         ordering = ["id"]
+        verbose_name = "功能節點"
+        verbose_name_plural = "功能節點"
 
     def __str__(self) -> str:
         return f"{self.name} (#{self.pk})"
@@ -100,6 +102,8 @@ class FeatureNodeContent(models.Model):
             )
         ]
         ordering = ["node_id", "document_type"]
+        verbose_name = "功能節點內容"
+        verbose_name_plural = "功能節點內容"
 
     def __str__(self) -> str:
         return f"{self.node.name} / {self.get_document_type_display()}"
