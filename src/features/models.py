@@ -34,9 +34,11 @@ class FeatureNode(models.Model):
     取代原始需求書建議的「功能分類」欄位——分類語意完全由 `parent` 表達
     （見 Issue #1 Core Domain Model / Implementation Decisions）。
 
-    `is_enabled` 是這個節點的軟刪除／停用旗標：停用後節點資料本身不會被
-    清除，只是不再出現在「可選清單」（active listing）中；既有關聯（未來
-    T4 的 ProjectFeatureSelection）不因軟刪除而斷裂或報錯。
+    刪除採真實刪除（無 soft-delete）：刪除節點會透過關聯的
+    `on_delete=CASCADE` 一併刪除其內容（`FeatureNodeContent`）與各專案對
+    它的勾選/排除紀錄，且不可復原。`parent` 使用 `on_delete=PROTECT`——
+    節點仍有子孫時不可刪除，必須先刪除或改接子孫節點，避免整棵子樹被
+    連帶清除或憑空斷開。
     """
 
     parent = models.ForeignKey(
@@ -49,10 +51,6 @@ class FeatureNode(models.Model):
 
     name = models.CharField("功能名稱", max_length=200)
     description = models.TextField("功能說明", blank=True, default="")
-
-    # 軟刪除／停用：停用後不出現在「可選清單」，但資料列本身不被清除，
-    # 也不影響既有關聯（見 Issue #4 acceptance criteria）。
-    is_enabled = models.BooleanField("是否啟用", default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

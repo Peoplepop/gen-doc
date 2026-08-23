@@ -265,7 +265,7 @@ def assemble_document(project: Project, document_type: str) -> dict:
             node = nodes_by_id.get(node_id)
             if node is None:
                 # 節點目前不在有效已選清單中（未勾選／被排除清單排除／已
-                # 停用）——完全不出現在組裝結果中（Issue #8 acceptance
+                # 被刪除）——完全不出現在組裝結果中（Issue #8 acceptance
                 # criteria 2、3）。
                 continue
 

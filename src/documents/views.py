@@ -49,8 +49,7 @@ def _require_auth(request):
 
 def _get_project_or_404(pk):
     try:
-        # 軟刪除的專案視為「不存在」，同其他 app 的既有慣例。
-        return Project.objects.get(pk=pk, is_deleted=False), None
+        return Project.objects.get(pk=pk), None
     except Project.DoesNotExist:
         return None, JsonResponse({"detail": "找不到專案"}, status=404)
 
@@ -219,7 +218,7 @@ def document_history(request, pk, document_type):
 
 @require_http_methods(["GET"])
 def project_document_status_list(request):
-    """專案列表用：每個（未軟刪除的）專案，四類文件（系統設計／系統測試／
+    """專案列表用：每個目前存在的專案，四類文件（系統設計／系統測試／
     系統安裝／教育訓練簡報）各自是否已產生過至少一次（Issue #9 acceptance
     criteria 4；Issue #10 acceptance criterion 3：「專案列表可看到教育訓練
     簡報目前是否已產生，與其他三類文件並列呈現」）。
@@ -250,7 +249,7 @@ def project_document_status_list(request):
     if auth_error:
         return auth_error
 
-    projects = list(Project.objects.filter(is_deleted=False))
+    projects = list(Project.objects.all())
     project_ids = [p.id for p in projects]
 
     generated_pairs = set(

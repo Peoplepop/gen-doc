@@ -1,4 +1,4 @@
-"""HTTP-layer tests for Project CRUD, auth gating, soft delete, and the
+"""HTTP-layer tests for Project CRUD, auth gating, hard delete, and the
 optimistic-lock conflict scenario.
 
 Per the MVP spec's Testing Decisions, the only test seam is the HTTP API
@@ -81,7 +81,6 @@ class ProjectCrudTests(TestCase):
 
         project = Project.objects.get(pk=body["id"])
         self.assertEqual(project.owner, self.user)
-        self.assertFalse(project.is_deleted)
 
     def test_create_project_missing_required_fields_rejected(self):
         response = self.client.post(
@@ -109,7 +108,7 @@ class ProjectCrudTests(TestCase):
         self.assertEqual(results[0]["project_name"], "ITSM 導入專案")
         self.assertIn("created_at", results[0])
 
-    def test_soft_delete_hides_from_list_but_keeps_row_in_db(self):
+    def test_delete_removes_row_from_db_permanently(self):
         create_response = self.client.post(
             "/api/projects/",
             data=json.dumps(SAMPLE_PROJECT_PAYLOAD),
@@ -123,9 +122,22 @@ class ProjectCrudTests(TestCase):
         list_response = self.client.get("/api/projects/")
         self.assertEqual(list_response.json()["results"], [])
 
-        # The row itself must still exist in the DB, only flagged deleted.
-        project = Project.objects.get(pk=project_id)
-        self.assertTrue(project.is_deleted)
+        # 真實刪除，不可復原——資料列本身不再存在於 DB。
+        self.assertFalse(Project.objects.filter(pk=project_id).exists())
+        with self.assertRaises(Project.DoesNotExist):
+            Project.objects.get(pk=project_id)
+
+    def test_deleted_project_detail_returns_404(self):
+        create_response = self.client.post(
+            "/api/projects/",
+            data=json.dumps(SAMPLE_PROJECT_PAYLOAD),
+            content_type="application/json",
+        )
+        project_id = create_response.json()["id"]
+        self.client.delete(f"/api/projects/{project_id}/")
+
+        response = self.client.get(f"/api/projects/{project_id}/")
+        self.assertEqual(response.status_code, 404)
 
     def test_update_project_succeeds_with_current_updated_at(self):
         create_response = self.client.post(

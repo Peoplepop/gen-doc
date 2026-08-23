@@ -8,8 +8,12 @@ class Project(models.Model):
     Carries the 專案變數 (project variable fields) listed in Issue #1's
     Core Domain Model / the T2 acceptance criteria, an owner
     (`owner_user_id` per the spec — modeled here as a FK to the built-in
-    User model), a soft-delete flag, and `updated_at` which doubles as
-    the optimistic-lock version stamp (compared on every save).
+    User model), and `updated_at` which doubles as the optimistic-lock
+    version stamp (compared on every save).
+
+    刪除採真實刪除（無 soft-delete）——刪除一筆 Project 會透過
+    `GeneratedDocument.project` 的 `on_delete=CASCADE` 一併永久刪除該專案
+    的所有文件產生歷史，且不可復原。
 
     Everything past T2 (FeatureNode selection, screenshots, content
     overrides, custom sections, document generation, duplication) is
@@ -34,9 +38,6 @@ class Project(models.Model):
     operating_system = models.CharField("作業系統", max_length=200, blank=True, default="")
     database = models.CharField("資料庫", max_length=200, blank=True, default="")
     server_location = models.CharField("伺服器位置", max_length=200, blank=True, default="")
-
-    # 軟刪除：刪除後列表不再顯示，但資料列本身不被清除。
-    is_deleted = models.BooleanField("是否已刪除", default=False)
 
     created_at = models.DateTimeField("建立時間", auto_now_add=True)
     # 樂觀鎖版本戳記：每次 save() 都會自動更新；PUT/PATCH 時比對呼叫端

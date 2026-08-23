@@ -33,8 +33,7 @@ def _parse_json(request):
 
 def _get_project_or_404(pk):
     try:
-        # 軟刪除的專案視為「不存在」，同其他 app 的既有慣例。
-        return Project.objects.get(pk=pk, is_deleted=False), None
+        return Project.objects.get(pk=pk), None
     except Project.DoesNotExist:
         return None, JsonResponse({"detail": "找不到專案"}, status=404)
 

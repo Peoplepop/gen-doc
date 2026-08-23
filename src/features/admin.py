@@ -5,16 +5,9 @@ from .models import FeatureNode, FeatureNodeContent
 
 @admin.register(FeatureNode)
 class FeatureNodeAdmin(admin.ModelAdmin):
-    """後台的「刪除」按鈕預設會真的從資料庫移除節點，跟這個系統的
-    軟刪除／停用政策（`is_enabled=False`，資料與既有專案關聯永遠不斷裂）
-    不一致——見 `projects/admin.py::ProjectAdmin` 的同一個修正與理由。"""
-
-    def delete_model(self, request, obj):
-        obj.is_enabled = False
-        obj.save(update_fields=["is_enabled", "updated_at"])
-
-    def delete_queryset(self, request, queryset):
-        queryset.update(is_enabled=False)
+    """節點刪除為真實刪除（無 soft-delete）：後台的「刪除」按鈕沿用
+    Django admin 預設行為（呼叫 model 的 .delete()）。`parent` 為
+    on_delete=PROTECT，仍有子孫的節點無法直接刪除，需先處理子孫節點。"""
 
 
 admin.site.register(FeatureNodeContent)

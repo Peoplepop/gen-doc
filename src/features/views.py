@@ -37,7 +37,6 @@ def _serialize_node(node: FeatureNode) -> dict:
         "parent": node.parent_id,
         "name": node.name,
         "description": node.description,
-        "is_enabled": node.is_enabled,
         "created_at": node.created_at.isoformat(),
         "updated_at": node.updated_at.isoformat(),
     }
@@ -106,10 +105,7 @@ def feature_node_list(request):
         return auth_error
 
     if request.method == "GET":
-        include_disabled = request.GET.get("include_disabled") == "true"
         nodes = FeatureNode.objects.all()
-        if not include_disabled:
-            nodes = nodes.filter(is_enabled=True)
         return JsonResponse({"results": [_serialize_node(n) for n in nodes]})
 
     payload, error = _parse_json(request)
@@ -128,7 +124,6 @@ def feature_node_list(request):
         name=name,
         description=payload.get("description") or "",
         parent=parent,
-        is_enabled=bool(payload.get("is_enabled", True)),
     )
     node.save()
     return JsonResponse(_serialize_node(node), status=201)
@@ -138,18 +133,14 @@ def feature_node_list(request):
 def feature_node_tree(request):
     """回傳巢狀樹狀結構，供「未來功能選擇」（T4）之類的可選清單使用。
 
-    預設只包含 is_enabled=True 的節點——停用節點（及其在這個輸出中的
-    子樹，因為父節點本身已經看不到）不會出現在這份可選清單。傳
-    ?include_disabled=true 可取得含停用節點的完整樹（供後台管理瀏覽用）。
+    節點刪除採真實刪除，DB 裡目前存在的節點就是完整可選清單，這裡直接
+    回傳全部節點組成的樹，不需要另外過濾。
     """
     auth_error = _require_auth(request)
     if auth_error:
         return auth_error
 
-    include_disabled = request.GET.get("include_disabled") == "true"
     nodes = list(FeatureNode.objects.all())
-    if not include_disabled:
-        nodes = [n for n in nodes if n.is_enabled]
 
     by_id = {n.id: n for n in nodes}
     serialized = {n.id: {**_serialize_node(n), "children": []} for n in nodes}
@@ -160,8 +151,7 @@ def feature_node_tree(request):
         if node.parent_id is not None and node.parent_id in by_id:
             serialized[node.parent_id]["children"].append(entry)
         else:
-            # 根節點，或父節點因停用而不在這份輸出中（不視為錯誤，直接
-            # 以根節點呈現這個子樹）。
+            # 根節點。
             roots.append(entry)
 
     return JsonResponse({"results": roots})
@@ -174,8 +164,6 @@ def feature_node_detail(request, pk):
         return auth_error
 
     try:
-        # 停用節點仍可透過 detail 端點讀取／編輯（含重新啟用）——
-        # is_enabled 是一個可切換的狀態旗標，不是「已刪除即消失」的語意。
         node = FeatureNode.objects.get(pk=pk)
     except FeatureNode.DoesNotExist:
         return JsonResponse({"detail": "找不到功能節點"}, status=404)
@@ -184,10 +172,13 @@ def feature_node_detail(request, pk):
         return JsonResponse(_serialize_node(node))
 
     if request.method == "DELETE":
-        # 停用（軟刪除）：資料列不會被清除，既有關聯不受影響。
-        node.is_enabled = False
-        node.save(update_fields=["is_enabled", "updated_at"])
-        return JsonResponse({"detail": "已停用"})
+        # 真實刪除，不可復原。內容（FeatureNodeContent）與各專案對這個
+        # 節點的勾選/排除紀錄會透過 CASCADE 一併刪除。`parent` 為
+        # on_delete=PROTECT——若這個節點仍有子孫，這裡會拋出
+        # ProtectedError（未被攔截，直接以 500 呈現），呼叫端須先刪除或
+        # 改接子孫節點。
+        node.delete()
+        return JsonResponse({"detail": "已刪除"})
 
     payload, error = _parse_json(request)
     if error:
@@ -201,9 +192,6 @@ def feature_node_detail(request, pk):
 
     if "description" in payload:
         node.description = payload.get("description") or ""
-
-    if "is_enabled" in payload:
-        node.is_enabled = bool(payload.get("is_enabled"))
 
     if "parent" in payload:
         parent, error, _ = _resolve_parent(payload, field_present=True)
