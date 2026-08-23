@@ -23,19 +23,11 @@ class ProjectAdmin(admin.ModelAdmin):
 
     change_form_template = "admin/projects/project/change_form.html"
 
-    # Django admin 的「刪除」按鈕預設呼叫 model 的 .delete()，也就是真的從
-    # 資料庫移除該筆記錄——這跟這個系統從 T2 就定案的「專案刪除一律軟刪除，
-    # 只標記 is_deleted，資料本身永遠不清除」政策不一致，且使用者已經因為
-    # 這個落差在後台誤刪過一筆真實專案資料（不是本來意義上的「可復原刪
-    # 除」）。覆寫成一律軟刪除，讓後台的「刪除」按鈕跟 API 的 DELETE /
-    # projects/<id>/ 語意保持一致，不需要使用者自己記得「這裡的刪除比較
-    # 危險」這種例外規則。
-    def delete_model(self, request, obj):
-        obj.is_deleted = True
-        obj.save(update_fields=["is_deleted", "updated_at"])
-
-    def delete_queryset(self, request, queryset):
-        queryset.update(is_deleted=True)
+    # 專案刪除為真實刪除（無 soft-delete）：後台的「刪除」按鈕沿用 Django
+    # admin 預設行為（呼叫 model 的 .delete()），跟 API 的 DELETE /
+    # projects/<id>/ 語意一致——請注意這是不可復原的操作，且
+    # `GeneratedDocument.project` 為 on_delete=CASCADE，刪除專案會一併永久
+    # 刪除該專案的所有文件產生歷史。
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         from features.models import DOCUMENT_TYPE_CHOICES

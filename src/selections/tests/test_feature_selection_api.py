@@ -285,10 +285,11 @@ class FeatureSelectionTwoProjectIsolationTests(TestCase):
         self.assertNotIn(self.query.id, effective_a)
 
 
-class FeatureSelectionDisabledNodeTests(TestCase):
-    """已停用（is_enabled=False）的功能節點不可被加入功能選擇——對應 T3
-    acceptance criteria「新專案的功能選擇頁看不到、無法新勾選已停用節點」。
-    """
+class FeatureSelectionDeletedNodeTests(TestCase):
+    """已刪除（真實刪除，無 soft-delete）的功能節點不可被加入功能選擇；
+    刪除一個先前已勾選的節點會讓它從有效已選清單消失（因為它已經不存
+    在，`ProjectFeatureSelection.node` 的 on_delete=CASCADE 也會一併清掉
+    指向它的舊勾選紀錄）。"""
 
     def setUp(self):
         self.user = User.objects.create_user(username="pm4", password="pw12345")
@@ -297,35 +298,43 @@ class FeatureSelectionDisabledNodeTests(TestCase):
             owner=self.user, customer_name="客戶", project_name="專案"
         )
 
-    def test_checking_a_disabled_node_is_rejected(self):
-        node = FeatureNode.objects.create(name="舊功能", is_enabled=False)
+    def test_checking_a_deleted_node_is_rejected(self):
+        node = FeatureNode.objects.create(name="舊功能")
+        deleted_node_id = node.id
+        node.delete()
 
         response = self.client.put(
             _selection_url(self.project.id),
-            data=json.dumps({"checked": [node.id], "excluded": []}),
+            data=json.dumps({"checked": [deleted_node_id], "excluded": []}),
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(
             ProjectFeatureSelection.objects.filter(
-                project=self.project, node=node
+                project=self.project, node_id=deleted_node_id
             ).exists()
         )
 
-    def test_disabling_a_previously_checked_node_removes_it_from_effective(self):
-        node = FeatureNode.objects.create(name="即將停用")
+    def test_deleting_a_previously_checked_node_removes_it_from_effective(self):
+        node = FeatureNode.objects.create(name="即將刪除")
         self.client.put(
             _selection_url(self.project.id),
             data=json.dumps({"checked": [node.id], "excluded": []}),
             content_type="application/json",
         )
 
-        node.is_enabled = False
-        node.save(update_fields=["is_enabled"])
+        node_id = node.id
+        node.delete()
 
         response = self.client.get(_selection_url(self.project.id))
-        self.assertNotIn(node.id, response.json()["effective"])
+        self.assertNotIn(node_id, response.json()["effective"])
+        # CASCADE 一併清掉了指向這個已刪除節點的舊勾選紀錄。
+        self.assertFalse(
+            ProjectFeatureSelection.objects.filter(
+                project=self.project, node_id=node_id
+            ).exists()
+        )
 
     def test_checking_nonexistent_node_is_rejected(self):
         response = self.client.put(

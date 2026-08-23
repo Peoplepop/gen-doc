@@ -1,5 +1,5 @@
 """HTTP-layer tests for FeatureNode CRUD, arbitrary-depth tree handling,
-and soft-delete (停用) semantics.
+and hard-delete semantics (incl. the `parent` PROTECT safety net).
 
 Per the MVP spec's Testing Decisions, the only test seam is the HTTP API
 layer: we call the endpoints through Django's test client and assert on
@@ -10,6 +10,7 @@ directly (same convention as `projects/tests/test_project_api.py`).
 import json
 
 from django.contrib.auth.models import User
+from django.db.models import ProtectedError
 from django.test import Client, TestCase
 
 from features.models import FeatureNode
@@ -57,7 +58,6 @@ class FeatureNodeCrudTests(TestCase):
         self.assertEqual(body["name"], "帳號管理")
         self.assertEqual(body["description"], "帳號相關功能")
         self.assertIsNone(body["parent"])
-        self.assertTrue(body["is_enabled"])
 
     def test_create_child_node_under_parent(self):
         parent = FeatureNode.objects.create(name="帳號管理")
@@ -185,25 +185,24 @@ class FeatureNodeArbitraryDepthTreeTests(TestCase):
         )
 
 
-class FeatureNodeSoftDeleteTests(TestCase):
-    """停用節點採軟刪除，不會真的刪除資料；停用後不再出現在可選清單。"""
+class FeatureNodeHardDeleteTests(TestCase):
+    """節點刪除為真實刪除（無 soft-delete）：刪除後資料列本身不再存在。
+    `parent` 使用 on_delete=PROTECT，仍有子孫的節點不可直接刪除。"""
 
     def setUp(self):
         self.user = User.objects.create_user(username="admin3", password="pw12345")
         self.client.login(username="admin3", password="pw12345")
 
-    def test_delete_disables_node_without_removing_row(self):
+    def test_delete_removes_row_permanently(self):
         node = FeatureNode.objects.create(name="帳號管理")
+        node_id = node.id
 
-        response = self.client.delete(f"/api/feature-nodes/{node.id}/")
+        response = self.client.delete(f"/api/feature-nodes/{node_id}/")
         self.assertEqual(response.status_code, 200)
 
-        node.refresh_from_db()
-        self.assertFalse(node.is_enabled)
-        # 資料列仍然存在，只是被標記停用。
-        self.assertTrue(FeatureNode.objects.filter(pk=node.id).exists())
+        self.assertFalse(FeatureNode.objects.filter(pk=node_id).exists())
 
-    def test_disabled_node_hidden_from_default_active_list(self):
+    def test_deleted_node_hidden_from_list(self):
         node = FeatureNode.objects.create(name="帳號管理")
         self.client.delete(f"/api/feature-nodes/{node.id}/")
 
@@ -211,7 +210,7 @@ class FeatureNodeSoftDeleteTests(TestCase):
         ids = [n["id"] for n in response.json()["results"]]
         self.assertNotIn(node.id, ids)
 
-    def test_disabled_node_hidden_from_active_tree(self):
+    def test_deleted_node_hidden_from_tree(self):
         node = FeatureNode.objects.create(name="帳號管理")
         self.client.delete(f"/api/feature-nodes/{node.id}/")
 
@@ -219,45 +218,39 @@ class FeatureNodeSoftDeleteTests(TestCase):
         ids = [n["id"] for n in response.json()["results"]]
         self.assertNotIn(node.id, ids)
 
-    def test_disabled_node_still_visible_with_include_disabled(self):
+    def test_deleted_node_detail_returns_404(self):
         node = FeatureNode.objects.create(name="帳號管理")
         self.client.delete(f"/api/feature-nodes/{node.id}/")
 
-        response = self.client.get("/api/feature-nodes/?include_disabled=true")
-        ids = [n["id"] for n in response.json()["results"]]
-        self.assertIn(node.id, ids)
+        response = self.client.get(f"/api/feature-nodes/{node.id}/")
+        self.assertEqual(response.status_code, 404)
 
-    def test_disabling_node_does_not_break_still_existing_child_relationship(self):
-        """T3 acceptance criterion: 停用不影響既有關聯，不因軟刪除而斷裂
-        或報錯. There's no Project<->FeatureNode association yet (T4), so
-        we prove the analogous in-scope relationship: a child node's `parent`
-        FK must keep resolving correctly even after the parent is disabled,
-        with no error raised anywhere in the stack."""
+    def test_deleting_node_with_children_is_blocked_by_parent_protect(self):
+        """`parent` 為 on_delete=PROTECT——仍有子孫的節點不可直接刪除，
+        避免整棵子樹被連帶清除或憑空斷開。這是刻意保留的安全防線（見
+        features/models.py 的 docstring），不是這次移除軟刪除要拿掉的
+        東西：呼叫端必須先刪除或改接子孫節點才能刪掉父節點。"""
+        parent = FeatureNode.objects.create(name="帳號管理")
+        FeatureNode.objects.create(name="新增帳號", parent=parent)
+
+        with self.assertRaises(ProtectedError):
+            self.client.delete(f"/api/feature-nodes/{parent.id}/")
+
+        # 刪除被擋下，父節點與子節點都必須還在。
+        self.assertTrue(FeatureNode.objects.filter(pk=parent.id).exists())
+
+    def test_deleting_leaf_child_then_parent_succeeds(self):
         parent = FeatureNode.objects.create(name="帳號管理")
         child = FeatureNode.objects.create(name="新增帳號", parent=parent)
 
-        delete_response = self.client.delete(f"/api/feature-nodes/{parent.id}/")
-        self.assertEqual(delete_response.status_code, 200)
-
-        # 子節點的 detail 端點仍可正常讀取，parent 關聯沒有斷裂或報錯。
-        child_response = self.client.get(f"/api/feature-nodes/{child.id}/")
+        child_response = self.client.delete(f"/api/feature-nodes/{child.id}/")
         self.assertEqual(child_response.status_code, 200)
-        self.assertEqual(child_response.json()["parent"], parent.id)
 
-        child.refresh_from_db()
-        self.assertEqual(child.parent_id, parent.id)
+        parent_response = self.client.delete(f"/api/feature-nodes/{parent.id}/")
+        self.assertEqual(parent_response.status_code, 200)
 
-    def test_node_can_be_re_enabled_via_patch(self):
-        node = FeatureNode.objects.create(name="帳號管理")
-        self.client.delete(f"/api/feature-nodes/{node.id}/")
-
-        response = self.client.patch(
-            f"/api/feature-nodes/{node.id}/",
-            data=json.dumps({"is_enabled": True}),
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["is_enabled"])
+        self.assertFalse(FeatureNode.objects.filter(pk=parent.id).exists())
+        self.assertFalse(FeatureNode.objects.filter(pk=child.id).exists())
 
 
 class FeatureNodeCsrfProtectionTests(TestCase):
@@ -301,5 +294,4 @@ class FeatureNodeCsrfProtectionTests(TestCase):
         response = self.client.delete(f"/api/feature-nodes/{node.id}/")
 
         self.assertEqual(response.status_code, 403)
-        node.refresh_from_db()
-        self.assertTrue(node.is_enabled)
+        self.assertTrue(FeatureNode.objects.filter(pk=node.id).exists())

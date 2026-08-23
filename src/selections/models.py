@@ -14,10 +14,11 @@ class ProjectFeatureSelection(models.Model):
     張表，避免與樹狀結構本身或排除清單產生資料不同步的風險（見 Issue #5
     acceptance criteria：勾選「登入」時其所有子孫自動被包含）。
 
-    設計判斷：`node` 在寫入當下必須是 `is_enabled=True`（見
-    `selections/views.py::project_feature_selection` 的驗證）——已停用節點
-    不可被新勾選，對應 T3 acceptance criteria「新專案的功能選擇頁看不到、
-    無法新勾選已停用節點」。
+    設計判斷：`node` 在寫入當下必須是一個仍然存在的 `FeatureNode`（見
+    `selections/views.py::project_feature_selection` 的驗證）——已刪除的
+    節點根本不存在，自然不可能被新勾選；`node` 的 `on_delete=CASCADE`
+    也保證了節點被刪除後，這張表裡指向它的舊勾選列會一併被清除，不會
+    殘留指向不存在節點的幽靈紀錄。
     """
 
     project = models.ForeignKey(
@@ -73,15 +74,17 @@ def compute_effective_selection(project: Project) -> list[int]:
     """回傳 `project` 目前「有效已選」的 FeatureNode id 清單（已排序）。
 
     運算方式：以每個直接勾選（ProjectFeatureSelection）的節點為 root，
-    展開其完整子孫子樹（root 本身也算在內），聯集起來，再扣掉：
-      1. 排除清單（ProjectFeatureExclusion）上的節點 id；
-      2. 目前已停用（is_enabled=False）的節點——即使它曾經是某個已勾選
-         節點的子孫，停用後也不再算作有效已選（設計判斷，詳見
-         `docs` 或 PR 說明：這是 T4 這個「即時查詢」端點的規則，跟
-         `GeneratedDocument` 快照的歷史內容不受影響是兩件事，互不衝突）。
+    展開其完整子孫子樹（root 本身也算在內），聯集起來，再扣掉排除清單
+    （ProjectFeatureExclusion）上的節點 id。
+
+    節點刪除採真實刪除（無 soft-delete）：已刪除的節點本身就不會出現在
+    `FeatureNode.objects` 查詢結果裡，也不會有任何指向它的
+    `ProjectFeatureSelection`/`ProjectFeatureExclusion` 殘留（`node` FK 為
+    `on_delete=CASCADE`），所以這裡不需要另外過濾「已刪除」節點——它們
+    在子孫展開的來源資料裡就已經不存在了。
 
     排除只移除該節點本身，不會連帶砍掉它自己的子孫——子孫仍在聯集結果
-    中，除非它們也各自被排除或停用。
+    中，除非它們也各自被排除。
     """
     checked_ids = list(
         ProjectFeatureSelection.objects.filter(project=project).values_list(
@@ -100,12 +103,8 @@ def compute_effective_selection(project: Project) -> list[int]:
     # 一次性把整個功能樹的 parent/child 關係讀進記憶體：功能節點樹是內容
     # 管理規模（幾十到幾百筆），不是大數據，換多次遞迴查詢的複雜度不划算。
     children_by_parent: dict[int | None, list[int]] = {}
-    enabled_by_id: dict[int, bool] = {}
-    for node_id, parent_id, is_enabled in FeatureNode.objects.values_list(
-        "id", "parent_id", "is_enabled"
-    ):
+    for node_id, parent_id in FeatureNode.objects.values_list("id", "parent_id"):
         children_by_parent.setdefault(parent_id, []).append(node_id)
-        enabled_by_id[node_id] = is_enabled
 
     subtree_ids: set[int] = set()
     stack = list(checked_ids)
@@ -116,9 +115,5 @@ def compute_effective_selection(project: Project) -> list[int]:
         subtree_ids.add(current)
         stack.extend(children_by_parent.get(current, []))
 
-    effective_ids = {
-        node_id
-        for node_id in subtree_ids
-        if enabled_by_id.get(node_id, False) and node_id not in excluded_ids
-    }
+    effective_ids = subtree_ids - excluded_ids
     return sorted(effective_ids)

@@ -32,8 +32,7 @@ def _parse_json(request):
 
 def _get_project_or_404(pk):
     try:
-        # 軟刪除的專案視為「不存在」，同 projects/views.py 的既有慣例。
-        return Project.objects.get(pk=pk, is_deleted=False), None
+        return Project.objects.get(pk=pk), None
     except Project.DoesNotExist:
         return None, JsonResponse({"detail": "找不到專案"}, status=404)
 
@@ -111,20 +110,11 @@ def project_feature_selection(request, pk):
     found_checked_ids = {n.id for n in checked_nodes}
     missing_checked = set(checked_ids) - found_checked_ids
     if missing_checked:
+        # 已刪除的節點根本不存在，自然也會落在這個「找不到」分支——節點
+        # 刪除採真實刪除（無 soft-delete），不需要另外一條「已停用不可
+        # 勾選」的規則。
         return JsonResponse(
             {"detail": f"找不到功能節點: {sorted(missing_checked)}"}, status=400
-        )
-
-    # 已停用節點不可被（新）勾選——對應 T3 acceptance criteria「新專案的
-    # 功能選擇頁看不到、無法新勾選已停用節點」。這裡對「整份」checked
-    # 清單一致套用這條規則（不只針對新增的 id）：已停用節點一律不可能
-    # 出現在 checked 清單裡，維持這個端點「已停用＝對功能選擇系統不可見」
-    # 的單一規則，跟 compute_effective_selection() 把已停用節點自動排除
-    # 在有效清單之外是同一套設計判斷（見 selections/models.py 註解）。
-    disabled_checked = sorted(n.id for n in checked_nodes if not n.is_enabled)
-    if disabled_checked:
-        return JsonResponse(
-            {"detail": f"已停用的功能節點不可勾選: {disabled_checked}"}, status=400
         )
 
     excluded_found_ids = set(

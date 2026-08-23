@@ -46,7 +46,6 @@ def _serialize(project: Project) -> dict:
     data = {
         "id": project.id,
         "owner": project.owner_id,
-        "is_deleted": project.is_deleted,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
     }
@@ -94,8 +93,7 @@ def project_list(request):
         return auth_error
 
     if request.method == "GET":
-        # 軟刪除的專案不出現在列表中，但資料本身仍留在 DB。
-        projects = Project.objects.filter(is_deleted=False)
+        projects = Project.objects.all()
         return JsonResponse({"results": [_serialize(p) for p in projects]})
 
     payload, error = _parse_json(request)
@@ -124,8 +122,7 @@ def project_detail(request, pk):
         return auth_error
 
     try:
-        # 軟刪除的專案視為「不存在」於一般操作流程中。
-        project = Project.objects.get(pk=pk, is_deleted=False)
+        project = Project.objects.get(pk=pk)
     except Project.DoesNotExist:
         return JsonResponse({"detail": "找不到專案"}, status=404)
 
@@ -133,8 +130,9 @@ def project_detail(request, pk):
         return JsonResponse(_serialize(project))
 
     if request.method == "DELETE":
-        project.is_deleted = True
-        project.save(update_fields=["is_deleted", "updated_at"])
+        # 真實刪除，不可復原——GeneratedDocument.project 為
+        # on_delete=CASCADE，這個專案的所有文件產生歷史會一併被永久刪除。
+        project.delete()
         return JsonResponse({"detail": "已刪除"})
 
     # PUT/PATCH：先做樂觀鎖檢查，再套用欄位變更。
@@ -251,8 +249,7 @@ def project_duplicate(request, pk):
         return auth_error
 
     try:
-        # 軟刪除的專案視為「不存在」，同本檔案其他端點的既有慣例。
-        source = Project.objects.get(pk=pk, is_deleted=False)
+        source = Project.objects.get(pk=pk)
     except Project.DoesNotExist:
         return JsonResponse({"detail": "找不到專案"}, status=404)
 
